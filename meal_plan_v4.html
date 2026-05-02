@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meal Plan Optimizer</title>
+<style>
+  :root {
+    --bg:#f7f6f2;--surface:#fff;--border:#e8e5de;--border-strong:#d0ccc2;
+    --text:#1a1917;--text-muted:#8a8780;--text-light:#b5b2aa;
+    --accent:#2d6a4f;--accent-dark:#1b4332;
+    --blue:#1a5fa8;--blue-light:#e8f0fb;
+    --amber:#92560a;--amber-light:#fef3e2;
+    --red:#9b2226;--red-light:#fce8e8;
+    --p-color:#1a5fa8;--p-bg:#e8f0fb;
+    --c-color:#2d6a4f;--c-bg:#e8f4ee;
+    --f-color:#92560a;--f-bg:#fef3e2;
+    --radius:10px;--radius-sm:6px;
+    --shadow:0 1px 3px rgba(0,0,0,0.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+  .header-title{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .dot{width:8px;height:8px;background:var(--accent);border-radius:50%}
+  .day-switcher{display:flex;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;gap:2px}
+  .day-btn{padding:6px 16px;border-radius:4px;border:none;background:transparent;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;transition:all .15s}
+  .day-btn.active{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+
+  .step-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:stretch;overflow-x:auto}
+  .step-item{display:flex;align-items:center;gap:10px;padding:13px 16px 13px 0;opacity:.38;transition:opacity .2s;white-space:nowrap}
+  .step-item.active{opacity:1}
+  .step-item.done{opacity:.6;cursor:pointer}
+  .step-item.done:hover{opacity:.85}
+  .step-num{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--text-muted);flex-shrink:0}
+  .step-item.active .step-num,.step-item.done .step-num{background:var(--accent);border-color:var(--accent);color:#fff}
+  .step-text{font-size:13px;font-weight:500}
+  .step-sub{font-size:11px;color:var(--text-muted);margin-top:1px}
+  .step-arrow{color:var(--border-strong);padding:0 4px;align-self:center;font-size:16px}
+
+  .main{padding:20px 24px;max-width:1300px;margin:0 auto}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:800px){.two{grid-template-columns:1fr}}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .ph{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-shrink:0}
+  .pt{font-size:13px;font-weight:600}
+  .ps{font-size:12px;color:var(--text-muted);margin-top:2px}
+  .pb{overflow-y:auto;flex:1;max-height:560px}
+
+  .macro-bar{display:flex;padding:10px 18px;background:var(--bg);border-bottom:1px solid var(--border);flex-shrink:0}
+  .mi{flex:1;display:flex;flex-direction:column;gap:2px;padding-right:12px}
+  .mi:not(:last-child){border-right:1px solid var(--border);margin-right:12px}
+  .ml{font-size:10px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+  .mv{font-size:17px;font-weight:600}
+  .mv.p{color:var(--p-color)}.mv.c{color:var(--c-color)}.mv.f{color:var(--f-color)}.mv.k{color:var(--text);font-size:15px}
+  .md{font-size:11px;font-weight:500;margin-top:1px}
+  .md.pos{color:var(--accent)}.md.neg{color:var(--red)}.md.zero{color:var(--text-light)}
+
+  .meal-lbl{padding:7px 18px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;background:var(--bg);border-bottom:1px solid var(--border)}
+  .col-hd{display:grid;gap:4px;padding:5px 18px;font-size:10px;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--border)}
+  .col-hd span{text-align:right}.col-hd span:nth-child(2){text-align:left}
+
+  .fr{display:grid;gap:4px;padding:7px 18px;align-items:center;border-bottom:1px solid var(--border);transition:background .1s}
+  .fr:last-child{border-bottom:none}
+  .fr.click{cursor:pointer}.fr.click:hover{background:#f4f3ef}
+  .fr.rem{background:var(--red-light)}.fr.rem .fn{color:var(--red);font-weight:500;text-decoration:line-through}
+  .fr.sel{background:var(--blue-light)}.fr.sel .fn{color:var(--blue);font-weight:500}
+  .fr.fixed{opacity:.42}
+  .fn{font-size:13px}
+  .por{font-size:12px;color:var(--text-muted)}
+  .num{font-size:12px;text-align:right;color:var(--text-muted)}
+  .chkb{width:16px;height:16px;border:1.5px solid var(--border-strong);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;transition:all .12s}
+  .fr.rem .chkb{background:var(--red);border-color:var(--red)}
+  .fr.sel .chkb{background:var(--blue);border-color:var(--blue)}
+  .ftag{font-size:9px;color:var(--text-light);text-transform:uppercase}
+
+  .ab{padding:12px 18px;display:flex;gap:8px;align-items:center;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0}
+  .ai{flex:1;font-size:12px;color:var(--text-muted)}
+  .btn{padding:7px 15px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;white-space:nowrap}
+  .btn:hover{background:var(--bg)}
+  .btn.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.pri:hover{background:var(--accent-dark)}
+  .btn.pri:disabled,.btn:disabled{opacity:.32;cursor:not-allowed}
+  .btn.ghost{border-color:var(--border);color:var(--text-muted)}
+  .btn.ghost:hover{color:var(--text);border-color:var(--border-strong)}
+  .btn.sel-btn{background:var(--c-bg);color:var(--accent);border-color:#9dd4b8}
+
+  .search-box{padding:10px 18px;border-bottom:1px solid var(--border)}
+  .si{width:100%;padding:7px 12px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;color:var(--text);background:var(--bg);outline:none}
+  .si:focus{border-color:var(--blue);background:var(--surface)}
+
+  .type-bar{padding:8px 18px;border-bottom:1px solid var(--border);background:var(--bg);font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .ttag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600}
+  .ttag.Bfast{background:#fff3cd;color:#856404}
+  .ttag.Lunch{background:var(--c-bg);color:var(--c-color)}
+  .ttag.Dinner{background:var(--blue-light);color:var(--blue)}
+  .ttag.Snack{background:#f0e8fb;color:#6a3b9b}
+
+  .gap-bar{padding:10px 18px;background:#fffbf0;border-bottom:1px solid #f0e8cc;font-size:12px;color:#7a5c10;display:flex;gap:12px;flex-wrap:wrap;align-items:center;flex-shrink:0}
+  .gi{display:flex;align-items:center;gap:4px}
+  .gl{font-size:10px;color:#a07820;font-weight:600;text-transform:uppercase}
+  .gv{font-size:14px;font-weight:600}
+  .gok{color:var(--accent);font-size:12px;font-weight:600}
+
+  .pc{display:flex;align-items:center;gap:3px;justify-content:flex-end}
+  .pb2{width:20px;height:20px;border:1px solid var(--border-strong);border-radius:4px;background:var(--surface);color:var(--text-muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .1s;flex-shrink:0}
+  .pb2:hover{background:var(--bg);color:var(--text)}
+  .pv{font-size:12px;min-width:34px;text-align:center;font-weight:500}
+
+  .pill{padding:3px 10px;border-radius:20px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
+  .pill.p{background:var(--p-bg);color:var(--p-color)}
+  .pill.c{background:var(--c-bg);color:var(--c-color)}
+  .pill.f{background:var(--f-bg);color:var(--f-color)}
+  .pill.k{background:var(--bg);color:var(--text);border:1px solid var(--border)}
+  .delta{font-size:10px;font-weight:500}
+  .delta.pos{color:#27ae60}.delta.neg{color:var(--red)}.delta.zero{color:var(--text-light)}
+
+  .combo-card{border-bottom:1px solid var(--border);padding:14px 18px;transition:background .12s}
+  .combo-card:last-child{border-bottom:none}
+  .combo-card:hover{background:#fafaf8}
+  .combo-card.picked{background:var(--c-bg);border-left:3px solid var(--accent)}
+  .cc-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .cc-num{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em}
+  .cc-pills{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+  .cc-row{display:grid;grid-template-columns:70px 1fr 34px 34px 34px;gap:4px;padding:3px 0;font-size:12px;align-items:center}
+  .cc-row .rp{color:var(--text-muted);font-size:11px}
+  .cc-row .fn2{color:var(--blue);font-weight:500}
+  .cc-row .fn2.merged{color:var(--accent)}
+  .cc-row .num{text-align:right;color:var(--text-muted)}
+  .merge-hint{font-size:10px;color:var(--accent);margin-left:4px;font-style:italic}
+
+  .rv-lbl{padding:6px 18px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border)}
+  .rv-lbl.kept{background:var(--bg);color:var(--text-muted)}
+  .rv-lbl.chosen{background:var(--blue-light);color:var(--blue)}
+  .rv-lbl.auto{background:var(--c-bg);color:var(--c-color)}
+  .rv-row{display:grid;grid-template-columns:80px 1fr 36px 36px 36px;gap:4px;padding:6px 18px;font-size:12px;align-items:center;border-bottom:1px solid var(--border)}
+  .rv-row:last-child{border-bottom:none}
+  .rv-row .rp{color:var(--text-muted)}
+  .rv-row .fn{color:var(--text)}
+  .rv-row .fn.ch{color:var(--blue);font-weight:500}
+  .rv-row .fn.au{color:var(--accent);font-weight:500}
+  .rv-row .fn.mg{color:var(--accent);font-weight:500}
+  .rv-row .num{text-align:right;color:var(--text-muted)}
+  .rv-row .hint{font-size:10px;color:var(--accent);font-style:italic;margin-left:4px}
+
+  .empty{padding:44px 24px;text-align:center;color:var(--text-muted)}
+  .ei{font-size:32px;margin-bottom:10px;opacity:.5}
+  .et{font-size:14px;font-weight:500;color:var(--text);margin-bottom:6px}
+  .ed{font-size:13px;line-height:1.7}
+  .no-r{padding:32px 18px;text-align:center}
+  .no-r .t{font-size:13px;font-weight:500;color:var(--text);margin-bottom:6px}
+  .no-r .d{font-size:12px;color:var(--text-muted);line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title"><div class="dot"></div>Meal Plan Optimizer</div>
+  <div class="day-switcher">
+    <button class="day-btn active" onclick="switchDay('training')">🏋️ Training Day</button>
+    <button class="day-btn" onclick="switchDay('nontraining')">😴 Non-Training Day</button>
+  </div>
+</div>
+
+<div class="step-bar">
+  <div class="step-item active" id="s1" onclick="stepClick(1)"><div class="step-num" id="sn1">1</div><div><div class="step-text">移除食物</div><div class="step-sub">选择要替换的食物</div></div></div>
+  <div class="step-arrow">›</div>
+  <div class="step-item" id="s2" onclick="stepClick(2)"><div class="step-num" id="sn2">2</div><div><div class="step-text">选择替换食物</div><div class="step-sub">同餐次类型食材</div></div></div>
+  <div class="step-arrow">›</div>
+  <div class="step-item" id="s3" onclick="stepClick(3)"><div class="step-num" id="sn3">3</div><div><div class="step-text">补足方案</div><div class="step-sub">系统自动搭配缺口</div></div></div>
+  <div class="step-arrow">›</div>
+  <div class="step-item" id="s4" onclick="stepClick(4)"><div class="step-num" id="sn4">4</div><div><div class="step-text">确认餐单</div><div class="step-sub">Review + 对比默认</div></div></div>
+</div>
+
+<div class="main">
+  <div id="v1"></div>
+  <div id="v2" style="display:none"></div>
+  <div id="v3" style="display:none"></div>
+  <div id="v4" style="display:none"></div>
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────────────────────────────
+const PLANS = {
+  training:{
+    label:'Training Day',target:{p:133,c:178,f:49,kcal:1685},
+    meals:[
+      {label:'Oil',mealType:'oil',items:[{portion:'2 tsp',food:'Avo oil',p:0,c:0,f:9,fixed:true}]},
+      {label:'早餐 Breakfast',mealType:'Bfast',items:[
+        {portion:'1 scoop',food:'Liquid collagen',p:9,c:1,f:0,fixed:true},
+        {portion:'1 whole',food:'Eggs',p:6,c:0,f:5,type:2,perUnit:{p:6,c:0,f:5}},
+        {portion:'4oz',food:'Eggwhite',p:12,c:0,f:0,type:1,oz:4,step:.5,perOz:{p:3,c:0,f:0}},
+        {portion:'1 slice',food:"Dave's Killer bread",p:6,c:22,f:1,type:2,perUnit:{p:6,c:22,f:1}},
+        {portion:'3oz',food:'Blueberries',p:1,c:12,f:0,type:1,oz:3,step:.5,perOz:{p:.33,c:4,f:0}},
+        {portion:'10g',food:'Almond butter',p:2,c:2,f:5,type:1,oz:1,step:.5,perOz:{p:2,c:2,f:5}}
+      ]},
+      {label:'午餐 Lunch',mealType:'Lunch',items:[
+        {portion:'5oz',food:'Chicken tenderloin',p:32,c:0,f:1,type:1,oz:5,step:.5,perOz:{p:6.4,c:0,f:.2}},
+        {portion:'5oz',food:'Sweet potatoes',p:3,c:29,f:0,type:1,oz:5,step:.5,perOz:{p:.6,c:5.8,f:0}}
+      ]},
+      {label:'下午茶 PM Snack',mealType:'Snack',items:[
+        {portion:'5oz',food:'2% Lactaid',p:5,c:8,f:3,type:1,oz:5,step:.5,perOz:{p:1,c:1.6,f:.6}},
+        {portion:'1 fruit',food:'Banana',p:1,c:27,f:0,type:2,perUnit:{p:1,c:27,f:0}},
+        {portion:'15g',food:'Honey',p:0,c:12,f:0,type:1,oz:1,step:.5,perOz:{p:0,c:12,f:0}}
+      ]},
+      {label:'晚餐 Dinner',mealType:'Dinner',items:[
+        {portion:'5oz',food:'Salmon',p:30,c:0,f:20,type:1,oz:5,step:.5,perOz:{p:6,c:0,f:4}},
+        {portion:'6oz',food:'Black/white rice',p:5,c:45,f:2,type:1,oz:6,step:.5,perOz:{p:.83,c:7.5,f:.33}}
+      ]},
+      {label:'夜宵 Night Snack',mealType:'Snack',items:[
+        {portion:'0.5 scoop',food:'Evogen protein',p:13,c:2,f:0,type:2,perUnit:{p:25,c:4,f:1}},
+        {portion:'1 cake',food:'Chocolate rice cakes',p:1,c:12,f:1,type:2,perUnit:{p:1,c:12,f:1}},
+        {portion:'2oz',food:'Greek yogurt',p:7,c:2,f:2,type:1,oz:2,step:.5,perOz:{p:3.33,c:1.33,f:1}},
+        {portion:'5g',food:'Freeze dry strawberries',p:0,c:4,f:0,type:1,oz:1,step:.5,perOz:{p:0,c:4,f:0}}
+      ]}
+    ]
+  },
+  nontraining:{
+    label:'Non-Training Day',target:{p:130,c:132,f:59,kcal:1579},
+    meals:[
+      {label:'Oil',mealType:'oil',items:[{portion:'2 tsp',food:'Avo oil',p:0,c:0,f:9,fixed:true}]},
+      {label:'早餐 Breakfast',mealType:'Bfast',items:[
+        {portion:'1 scoop',food:'Liquid collagen',p:9,c:1,f:0,fixed:true},
+        {portion:'1oz',food:'Quaker Oats',p:4,c:19,f:2,type:1,oz:1,step:.5,perOz:{p:4,c:19,f:2}},
+        {portion:'2 whole',food:'Eggs',p:12,c:0,f:10,type:2,perUnit:{p:6,c:0,f:5}},
+        {portion:'3oz',food:'Blueberries',p:1,c:12,f:0,type:1,oz:3,step:.5,perOz:{p:.33,c:4,f:0}},
+        {portion:'10g',food:'Almond butter',p:2,c:2,f:5,type:1,oz:1,step:.5,perOz:{p:2,c:2,f:5}}
+      ]},
+      {label:'午餐 Lunch',mealType:'Lunch',items:[
+        {portion:'8oz',food:'Argentina shrimp',p:32,c:0,f:3,type:1,oz:8,step:.5,perOz:{p:4,c:0,f:.375}},
+        {portion:'5oz',food:'Sweet potatoes',p:3,c:29,f:0,type:1,oz:5,step:.5,perOz:{p:.6,c:5.8,f:0}}
+      ]},
+      {label:'下午茶 PM Snack',mealType:'Snack',items:[
+        {portion:'5oz',food:'2% Lactaid',p:5,c:8,f:3,type:1,oz:5,step:.5,perOz:{p:1,c:1.6,f:.6}},
+        {portion:'1 wedge',food:'Laughing cow light cheese',p:2,c:2,f:1,type:2,perUnit:{p:2,c:2,f:1}},
+        {portion:'1 cake',food:'Lightly salted rice cakes',p:1,c:7,f:0,type:2,perUnit:{p:1,c:7,f:0}},
+        {portion:'1 stick',food:'Chicken snack sticks',p:6,c:3,f:3,type:2,perUnit:{p:6,c:3,f:3}}
+      ]},
+      {label:'晚餐 Dinner',mealType:'Dinner',items:[
+        {portion:'5oz',food:'90% ground bison',p:29,c:0,f:14,type:1,oz:5,step:.5,perOz:{p:5.8,c:0,f:2.8}},
+        {portion:'4oz',food:'Black/white rice',p:3,c:30,f:1,type:1,oz:4,step:.5,perOz:{p:.75,c:7.5,f:.25}}
+      ]},
+      {label:'夜宵 Night Snack',mealType:'Snack',items:[
+        {portion:'10g',food:'Granola',p:1,c:7,f:2,type:1,oz:1,step:.5,perOz:{p:1,c:7,f:2}},
+        {portion:'6oz',food:'Greek yogurt',p:20,c:8,f:6,type:1,oz:6,step:.5,perOz:{p:3.33,c:1.33,f:1}},
+        {portion:'5g',food:'Freeze dry strawberries',p:0,c:4,f:0,type:1,oz:1,step:.5,perOz:{p:0,c:4,f:0}}
+      ]}
+    ]
+  }
+};
+
+// Each food has mealTypes = which meals it can appear in
+const FOOD_LIB = [
+  {food:'Chicken tenderloin',type:1,step:.5,base:{oz:5},perOz:{p:6.4,c:0,f:.2},mealTypes:['Lunch','Dinner']},
+  {food:'Chicken drumstick',type:1,step:.5,base:{oz:6},perOz:{p:5.33,c:0,f:1.33},mealTypes:['Lunch','Dinner']},
+  {food:'Slice chicken breast',type:1,step:.5,base:{oz:5},perOz:{p:6,c:0,f:.6},mealTypes:['Lunch','Dinner']},
+  {food:'Argentina shrimp',type:1,step:.5,base:{oz:8},perOz:{p:4,c:0,f:.375},mealTypes:['Lunch','Dinner']},
+  {food:'Eggwhite',type:1,step:.5,base:{oz:4},perOz:{p:3,c:0,f:0},mealTypes:['Bfast','Lunch','Dinner']},
+  {food:'93% ground beef',type:1,step:.5,base:{oz:5},perOz:{p:6,c:0,f:2},mealTypes:['Lunch','Dinner']},
+  {food:'90% ground bison',type:1,step:.5,base:{oz:5},perOz:{p:5.8,c:0,f:2.8},mealTypes:['Lunch','Dinner']},
+  {food:'Sliced beef sirloin',type:1,step:.5,base:{oz:5},perOz:{p:6.4,c:.4,f:1.6},mealTypes:['Lunch','Dinner']},
+  {food:'Beef shank',type:1,step:.5,base:{oz:4},perOz:{p:8.5,c:0,f:1.25},mealTypes:['Lunch','Dinner']},
+  {food:'Salmon',type:1,step:.5,base:{oz:5},perOz:{p:6,c:0,f:4},mealTypes:['Lunch','Dinner']},
+  {food:'Tilapia',type:1,step:.5,base:{oz:6},perOz:{p:5.33,c:0,f:.83},mealTypes:['Lunch','Dinner']},
+  {food:'Safe Catch Tuna',type:1,step:1.5,base:{oz:1.5},perOz:{p:8.67,c:0,f:0},mealTypes:['Bfast','Lunch','Dinner']},
+  {food:'Greek yogurt',type:1,step:.5,base:{oz:6},perOz:{p:3.33,c:1.33,f:1},mealTypes:['Bfast','Lunch','Dinner','Snack']},
+  {food:'Quaker Oats',type:1,step:.5,base:{oz:1},perOz:{p:4,c:19,f:2},mealTypes:['Bfast']},
+  {food:'Brown rice',type:1,step:.5,base:{oz:4},perOz:{p:.75,c:7.5,f:.25},mealTypes:['Lunch','Dinner']},
+  {food:'Black/white rice',type:1,step:.5,base:{oz:4},perOz:{p:.75,c:7.5,f:.25},mealTypes:['Lunch','Dinner']},
+  {food:'Sweet potatoes',type:1,step:.5,base:{oz:5},perOz:{p:.6,c:5.8,f:0},mealTypes:['Lunch','Dinner']},
+  {food:'Blueberries',type:1,step:.5,base:{oz:3},perOz:{p:.33,c:4,f:0},mealTypes:['Bfast','Snack']},
+  {food:'Freeze dry strawberries',type:1,step:.5,base:{oz:1},perOz:{p:0,c:4,f:0},mealTypes:['Snack']},
+  {food:'Granola',type:1,step:.5,base:{oz:1},perOz:{p:1,c:7,f:2},mealTypes:['Snack']},
+  {food:'Honey',type:1,step:.5,base:{oz:1},perOz:{p:0,c:12,f:0},mealTypes:['Snack']},
+  {food:'2% Lactaid',type:1,step:.5,base:{oz:5},perOz:{p:1,c:1.6,f:.6},mealTypes:['Bfast','Snack']},
+  {food:'OJ',type:1,step:.5,base:{oz:4},perOz:{p:.25,c:3.25,f:0},mealTypes:['Bfast','Snack']},
+  {food:'Almond butter',type:1,step:.5,base:{oz:1},perOz:{p:2,c:2,f:5},mealTypes:['Bfast','Snack']},
+  {food:'Avocado',type:1,step:.5,base:{oz:1},perOz:{p:2,c:9,f:15},mealTypes:['Bfast','Snack']},
+  {food:'Eggs',type:2,perUnit:{p:6,c:0,f:5},mealTypes:['Bfast','Lunch','Dinner']},
+  {food:'Chicken snack sticks',type:2,perUnit:{p:6,c:3,f:3},mealTypes:['Snack']},
+  {food:'Evogen protein',type:2,perUnit:{p:25,c:4,f:1},mealTypes:['Snack']},
+  {food:'Laughing cow light cheese',type:2,perUnit:{p:2,c:2,f:1},mealTypes:['Bfast','Snack']},
+  {food:"Dave's Killer bread",type:2,perUnit:{p:6,c:22,f:1},mealTypes:['Bfast','Snack']},
+  {food:'Mandarins',type:2,perUnit:{p:1,c:9,f:0},mealTypes:['Bfast','Snack']},
+  {food:'Lightly salted rice cakes',type:2,perUnit:{p:1,c:7,f:0},mealTypes:['Bfast','Snack']},
+  {food:'Chocolate rice cakes',type:2,perUnit:{p:1,c:12,f:1},mealTypes:['Bfast','Snack']},
+  {food:'Banana',type:2,perUnit:{p:1,c:27,f:0},mealTypes:['Bfast','Snack']}
+];
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let currentDay='training';
+let removedKeys=new Set();   // "mealLabel|foodName"
+let chosenFoods=[];          // replacement foods chosen by user (same mealType as removed)
+let pickedCombo=null;        // {idx, foods:[{food,portion,p,c,f,mealType}]}
+let libSearch='';
+let step3Combos=[];
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const r=v=>Math.round(v*10)/10;
+const r0=v=>Math.round(v);
+const esc=s=>s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+
+function getPlanItem(key){
+  const sep=key.indexOf('|');
+  const ml=key.slice(0,sep),fn=key.slice(sep+1);
+  const m=PLANS[currentDay].meals.find(x=>x.label===ml);
+  return m?m.items.find(x=>x.food===fn):null;
+}
+
+function getMealType(key){
+  const sep=key.indexOf('|'),ml=key.slice(0,sep);
+  const m=PLANS[currentDay].meals.find(x=>x.label===ml);
+  return m?m.mealType:null;
+}
+
+// All unique mealTypes being removed (excluding 'oil')
+function getRemovedMealTypes(){
+  const s=new Set();
+  removedKeys.forEach(k=>{const t=getMealType(k);if(t&&t!=='oil')s.add(t);});
+  return s;
+}
+
+// Names of foods already in the default plan for a given mealType
+function getExistingFoodsForType(mealType){
+  const plan=PLANS[currentDay];
+  const result={};
+  plan.meals.forEach(meal=>{
+    if(meal.mealType!==mealType)return;
+    meal.items.forEach(item=>{
+      if(!item.fixed) result[item.food]={...item};
+    });
+  });
+  return result;
+}
+
+function calcFixed(){
+  let p=0,c=0,f=0;
+  PLANS[currentDay].meals.forEach(meal=>{
+    meal.items.forEach(item=>{
+      if(!removedKeys.has(meal.label+'|'+item.food)){p+=item.p;c+=item.c;f+=item.f;}
+    });
+  });
+  return{p:r(p),c:r(c),f:r(f)};
+}
+
+function calcChosen(){
+  return chosenFoods.reduce((a,x)=>({p:r(a.p+x.p),c:r(a.c+x.c),f:r(a.f+x.f)}),{p:0,c:0,f:0});
+}
+
+function calcGap(extraP=0,extraC=0,extraF=0){
+  const t=PLANS[currentDay].target,fix=calcFixed(),ch=calcChosen();
+  return{p:r(t.p-fix.p-ch.p-extraP),c:r(t.c-fix.c-ch.c-extraC),f:r(t.f-fix.f-ch.f-extraF)};
+}
+
+function dHTML(v){
+  if(Math.abs(v)<.05)return`<span class="delta zero">±0</span>`;
+  return`<span class="delta ${v>0?'pos':'neg'}">${v>0?'+':''}${v}</span>`;
+}
+
+function ttag(t){
+  const lbl={Bfast:'早餐',Lunch:'午餐',Dinner:'晚餐',Snack:'点心'};
+  return`<span class="ttag ${t}">${lbl[t]||t}</span>`;
+}
+
+function macroBarHTML(p,c,f,kcal,dp,dc,df,dk){
+  const hasDelta=dp!==undefined;
+  return`
+    <div class="mi"><div class="ml">Protein</div><div class="mv p">${p}g</div>${hasDelta?`<div class="md ${dp>0?'pos':dp<0?'neg':'zero'}">${dp>=0?'+':''}${dp}g vs 默认</div>`:''}</div>
+    <div class="mi"><div class="ml">Carbs</div><div class="mv c">${c}g</div>${hasDelta?`<div class="md ${dc>0?'pos':dc<0?'neg':'zero'}">${dc>=0?'+':''}${dc}g vs 默认</div>`:''}</div>
+    <div class="mi"><div class="ml">Fat</div><div class="mv f">${f}g</div>${hasDelta?`<div class="md ${df>0?'pos':df<0?'neg':'zero'}">${df>=0?'+':''}${df}g vs 默认</div>`:''}</div>
+    <div class="mi"><div class="ml">Calories</div><div class="mv k">${kcal} kcal</div>${hasDelta?`<div class="md ${dk>0?'pos':dk<0?'neg':'zero'}">${dk>=0?'+':''}${dk} vs 默认</div>`:''}</div>`;
+}
+
+// ── STEP NAV ──────────────────────────────────────────────────────────────────
+function setStep(n){
+  ['v1','v2','v3','v4'].forEach((id,i)=>document.getElementById(id).style.display=i===n-1?'block':'none');
+  [1,2,3,4].forEach(i=>{
+    const el=document.getElementById('s'+i),sn=document.getElementById('sn'+i);
+    el.classList.toggle('active',i===n);
+    el.classList.toggle('done',i<n);
+    sn.textContent=i<n?'✓':i;
+  });
+}
+function stepClick(n){if(document.getElementById('s'+n).classList.contains('done')){[goStep1,goStep2,goStep3,goStep4][n-1]();}}
+function switchDay(day){
+  currentDay=day;removedKeys.clear();chosenFoods=[];pickedCombo=null;libSearch='';
+  document.querySelectorAll('.day-btn').forEach((b,i)=>b.classList.toggle('active',(i===0&&day==='training')||(i===1&&day==='nontraining')));
+  goStep1();
+}
+
+// ── STEP 1 ────────────────────────────────────────────────────────────────────
+function goStep1(){setStep(1);renderS1();}
+function renderS1(){
+  const plan=PLANS[currentDay],t=plan.target;
+  let rows='';
+  plan.meals.forEach(meal=>{
+    rows+=`<div class="meal-lbl">${meal.label}</div>`;
+    rows+=`<div class="col-hd" style="grid-template-columns:72px 1fr 36px 36px 36px 36px"><span style="text-align:left">份量</span><span>食物</span><span>P</span><span>C</span><span>F</span><span></span></div>`;
+    meal.items.forEach(item=>{
+      const key=meal.label+'|'+item.food,isSel=removedKeys.has(key);
+      if(item.fixed){
+        rows+=`<div class="fr fixed" style="grid-template-columns:72px 1fr 36px 36px 36px 36px"><span class="por">${item.portion}</span><span class="fn">${item.food}</span><span class="num">${item.p}</span><span class="num">${item.c}</span><span class="num">${item.f}</span><span style="display:flex;justify-content:flex-end"><span class="ftag">固定</span></span></div>`;
+      } else {
+        rows+=`<div class="fr click ${isSel?'rem':''}" style="grid-template-columns:72px 1fr 36px 36px 36px 36px" onclick="toggleRemove('${esc(meal.label)}','${esc(item.food)}')"><span class="por">${item.portion}</span><span class="fn">${item.food}</span><span class="num">${item.p}</span><span class="num">${item.c}</span><span class="num">${item.f}</span><span style="display:flex;justify-content:flex-end"><div class="chkb">${isSel?'✓':''}</div></span></div>`;
+      }
+    });
+  });
+  const cnt=removedKeys.size;
+  document.getElementById('v1').innerHTML=`<div class="two">
+    <div class="panel">
+      <div class="ph"><div><div class="pt">默认餐单</div><div class="ps">点击勾选要替换的食物</div></div></div>
+      <div class="macro-bar">${macroBarHTML(t.p,t.c,t.f,t.kcal)}</div>
+      <div class="pb">${rows}</div>
+      <div class="ab"><span class="ai">${cnt===0?'未选择任何食物':`已选 ${cnt} 个食物要替换`}</span><button class="btn ghost" onclick="removedKeys.clear();chosenFoods=[];renderS1()">清空</button><button class="btn pri" onclick="goStep2()" ${cnt===0?'disabled':''}>下一步 →</button></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><div class="pt">使用说明</div></div></div>
+      <div class="pb"><div style="padding:24px 20px;font-size:13px;line-height:2;color:var(--text-muted)">
+        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:12px">四步完成餐单替换</div>
+        <div>① 勾选想<strong>移除</strong>的食物（可多选）</div>
+        <div>② 从<strong>同餐次类型</strong>食材库中选你想换成的食物</div>
+        <div>③ 系统自动搜索所有能补足 P/C/F 缺口的组合</div>
+        <div style="margin-bottom:20px">④ Review 完整餐单，对比默认方案</div>
+        <div style="padding:12px 14px;background:var(--amber-light);border-radius:var(--radius-sm);font-size:12px;color:var(--amber);line-height:1.8">
+          <strong>食物类型说明：</strong><br>
+          Step 2 选替换食物时，只显示与被替换食物<strong>同餐次</strong>的食材（如替换晚餐食物 → 只显示 Dinner 类食材）<br><br>
+          Step 3 补足缺口时，系统从<strong>整个食材库</strong>搜索，每个补足食物会标注适合哪一餐<br><br>
+          <strong>误差范围：</strong>P / C / F 各允许 ±1g
+        </div>
+      </div></div>
+    </div>
+  </div>`;
+}
+function toggleRemove(meal,food){
+  const key=meal+'|'+food;
+  if(removedKeys.has(key))removedKeys.delete(key);else removedKeys.add(key);
+  chosenFoods=[];renderS1();
+}
+
+// ── STEP 2 ────────────────────────────────────────────────────────────────────
+function goStep2(){setStep(2);renderS2();}
+function renderS2(){
+  const removedTypes=getRemovedMealTypes();
+  const removedNames=new Set([...removedKeys].map(k=>k.slice(k.indexOf('|')+1)));
+
+  // Library: only foods whose mealTypes intersect with removedTypes, exclude removed foods
+  const libItems=FOOD_LIB.filter(f=>{
+    if(removedNames.has(f.food))return false;
+    if(libSearch&&!f.food.toLowerCase().includes(libSearch.toLowerCase()))return false;
+    return f.mealTypes.some(t=>removedTypes.has(t));
+  });
+
+  let libRows='';
+  libItems.forEach(f=>{
+    const ch=chosenFoods.find(x=>x.food===f.food),isSel=!!ch;
+    const matchTypes=f.mealTypes.filter(t=>removedTypes.has(t));
+    const pU=f.type===1?`${r(f.perOz.p)}/oz`:f.perUnit.p;
+    const cU=f.type===1?`${r(f.perOz.c)}/oz`:f.perUnit.c;
+    const fU=f.type===1?`${r(f.perOz.f)}/oz`:f.perUnit.f;
+    const curP=isSel?ch.p:(f.type===1?r(f.perOz.p*f.base.oz):f.perUnit.p);
+    libRows+=`<div class="fr click ${isSel?'sel':''}" style="grid-template-columns:1fr 48px 48px 48px 48px 30px" onclick="toggleLib('${esc(f.food)}')">
+      <span class="fn">${f.food} <span style="margin-left:3px">${matchTypes.map(t=>ttag(t)).join('')}</span></span>
+      <span class="num" style="font-size:11px">${pU}</span><span class="num" style="font-size:11px">${cU}</span><span class="num" style="font-size:11px">${fU}</span>
+      <span class="num" style="color:var(--p-color);font-weight:${isSel?600:400}">${curP}g P</span>
+      <span style="display:flex;justify-content:flex-end"><div class="chkb">${isSel?'✓':''}</div></span>
+    </div>`;
+  });
+  if(!libRows)libRows=`<div class="empty"><div class="ei">🔍</div><div class="et">没有符合类型的食材</div><div class="ed">当前被替换食物的餐次类型在食材库中没有可用食材</div></div>`;
+
+  const gap=calcGap(),allOk=Math.abs(gap.p)<=1&&Math.abs(gap.c)<=1&&Math.abs(gap.f)<=1;
+  let gapInner='';
+  if(allOk){gapInner=`<span class="gok">✓ P/C/F 均在误差范围内，可直接下一步！</span>`;}
+  else{['p','c','f'].forEach(m=>{const v=gap[m],abs=Math.abs(v);if(abs>1){const col=v>0?'#7a5c10':'var(--red)';gapInner+=`<span class="gi"><span class="gl">${m.toUpperCase()}</span><span class="gv" style="color:${col}">${v>0?'还缺':'多了'} ${abs}g</span></span>`;}else{gapInner+=`<span class="gi"><span class="gl">${m.toUpperCase()}</span><span class="gok">✓</span></span>`;}});}
+
+  let chosenRows='';
+  if(chosenFoods.length===0){chosenRows=`<div class="empty"><div class="ei">👈</div><div class="et">还没有选择替换食物</div><div class="ed">从左侧食材库中选择</div></div>`;}
+  else{
+    chosenRows=`<div class="col-hd" style="grid-template-columns:1fr 96px 36px 36px 36px;padding:5px 18px"><span style="text-align:left">食物</span><span style="text-align:center">份量</span><span>P</span><span>C</span><span>F</span></div>`;
+    chosenFoods.forEach(item=>{
+      const pl=item.type===1?`${item.oz}oz`:(item.count===1?'1份':`${item.count}份`);
+      chosenRows+=`<div class="fr" style="grid-template-columns:1fr 96px 36px 36px 36px">
+        <span class="fn" style="color:var(--blue)">${item.food}</span>
+        <span class="pc"><button class="pb2" onclick="adjPortion('${esc(item.food)}',-1)">−</button><span class="pv">${pl}</span><button class="pb2" onclick="adjPortion('${esc(item.food)}',1)">+</button></span>
+        <span class="num">${item.p}</span><span class="num">${item.c}</span><span class="num">${item.f}</span>
+      </div>`;
+    });
+  }
+  const typeTags=[...removedTypes].map(t=>ttag(t)).join(' ');
+  const cnt=chosenFoods.length;
+  document.getElementById('v2').innerHTML=`<div class="two">
+    <div class="panel">
+      <div class="ph"><div><div class="pt">食材库</div><div class="ps">仅显示适合以下餐次的食材</div></div><button class="btn ghost" style="font-size:12px;padding:5px 12px" onclick="goStep1()">← 返回</button></div>
+      <div class="type-bar">仅显示：${typeTags}</div>
+      <div class="search-box"><input class="si" type="text" placeholder="搜索食材..." oninput="libSearch=this.value;renderS2()" value="${libSearch}"></div>
+      <div class="col-hd" style="grid-template-columns:1fr 48px 48px 48px 48px 30px;padding:5px 18px"><span style="text-align:left">食物</span><span>P/单位</span><span>C/单位</span><span>F/单位</span><span>当前P</span><span></span></div>
+      <div class="pb">${libRows}</div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><div class="pt">我的替换选择</div><div class="ps">可调整份量，实时查看缺口</div></div></div>
+      <div class="gap-bar"><strong style="margin-right:4px">当前缺口：</strong>${gapInner}</div>
+      <div class="pb">${chosenRows}</div>
+      <div class="ab"><span class="ai">${cnt===0?'未选择替换食物':`已选 ${cnt} 个替换食物`}</span><button class="btn ghost" onclick="chosenFoods=[];renderS2()">清空</button><button class="btn pri" onclick="goStep3()" ${cnt===0?'disabled':''}>搜索补足方案 →</button></div>
+    </div>
+  </div>`;
+}
+function toggleLib(fn){
+  const f=FOOD_LIB.find(x=>x.food===fn);if(!f)return;
+  const idx=chosenFoods.findIndex(x=>x.food===fn);
+  if(idx>=0){chosenFoods.splice(idx,1);}
+  else{
+    let e={food:f.food,type:f.type,mealTypes:f.mealTypes};
+    if(f.type===1){e.oz=f.base.oz;e.step=f.step||.5;e.perOz=f.perOz;e.p=r(f.perOz.p*f.base.oz);e.c=r(f.perOz.c*f.base.oz);e.f=r(f.perOz.f*f.base.oz);}
+    else{e.count=1;e.perUnit=f.perUnit;e.p=f.perUnit.p;e.c=f.perUnit.c;e.f=f.perUnit.f;}
+    chosenFoods.push(e);
+  }
+  renderS2();
+}
+function adjPortion(fn,dir){
+  const item=chosenFoods.find(x=>x.food===fn);if(!item)return;
+  if(item.type===1){const nOz=r(item.oz+dir*item.step);if(nOz<item.step)return;item.oz=nOz;item.p=r(item.perOz.p*nOz);item.c=r(item.perOz.c*nOz);item.f=r(item.perOz.f*nOz);}
+  else{const n=item.count+dir;if(n<1)return;item.count=n;item.p=item.perUnit.p*n;item.c=item.perUnit.c*n;item.f=item.perUnit.f*n;}
+  renderS2();
+}
+
+// ── STEP 3 ────────────────────────────────────────────────────────────────────
+function goStep3(){
+  pickedCombo=null;
+  setStep(3);
+  const gap=calcGap();
+  const TOL=1;
+  const needsFill=Math.abs(gap.p)>TOL||Math.abs(gap.c)>TOL||Math.abs(gap.f)>TOL;
+  step3Combos=needsFill?findAutofill(gap.p,gap.c,gap.f,TOL):[[/* empty = no fill needed */]];
+  renderS3();
+}
+
+function renderS3(){
+  const gap=calcGap(),TOL=1;
+  const needsFill=Math.abs(gap.p)>TOL||Math.abs(gap.c)>TOL||Math.abs(gap.f)>TOL;
+  const t=PLANS[currentDay].target,fix=calcFixed(),ch=calcChosen();
+
+  let gapInner=needsFill
+    ?(['p','c','f'].map(m=>{const v=gap[m],col=v>0?'#7a5c10':'var(--red)';return`<span class="gi"><span class="gl">${m.toUpperCase()}</span><span class="gv" style="color:${col}">${v>0?'还缺':'多了'} ${Math.abs(v)}g</span></span>`;}).join('')+`<span style="color:var(--text-muted);font-size:12px;margin-left:4px">→ 找到 ${step3Combos.length} 个方案</span>`)
+    :`<span class="gok">✓ 你的替换选择已完全满足目标！</span>`;
+
+  let comboRows='';
+  if(step3Combos.length===0){
+    comboRows=`<div class="no-r"><div class="t">未找到符合条件的补足组合</div><div class="d">建议回到上一步调整份量使缺口更接近整数</div></div>`;
+  } else {
+    step3Combos.forEach((combo,idx)=>{
+      const aP=r(combo.reduce((s,x)=>s+x.p,0));
+      const aC=r(combo.reduce((s,x)=>s+x.c,0));
+      const aF=r(combo.reduce((s,x)=>s+x.f,0));
+      const totP=r(fix.p+ch.p+aP),totC=r(fix.c+ch.c+aC),totF=r(fix.f+ch.f+aF);
+      const kcal=r0(totP*4+totC*4+totF*9);
+      const dP=r(totP-t.p),dC=r(totC-t.c),dF=r(totF-t.f),dK=kcal-t.kcal;
+      const isPicked=pickedCombo&&pickedCombo.idx===idx;
+
+      let foodRows='';
+      if(combo.length===0){
+        foodRows=`<div style="font-size:12px;color:var(--accent);padding:4px 0">✓ 无需额外补足</div>`;
+      } else {
+        foodRows+=`<div class="cc-row" style="padding-bottom:3px"><span></span><span style="font-size:10px;color:var(--text-light);font-weight:600;text-transform:uppercase">食物（适合餐次）</span><span style="text-align:right;font-size:10px;color:var(--text-light);font-weight:600">P</span><span style="text-align:right;font-size:10px;color:var(--text-light);font-weight:600">C</span><span style="text-align:right;font-size:10px;color:var(--text-light);font-weight:600">F</span></div>`;
+        combo.forEach(f=>{
+          const typeTags2=f.mealTypes.map(t=>ttag(t)).join('');
+          const mergeInfo=f.mergeHint?`<span class="merge-hint">${f.mergeHint}</span>`:'';
+          foodRows+=`<div class="cc-row"><span class="rp">${f.portion}</span><span class="fn2 ${f.mergeHint?'merged':''}">${f.food} ${typeTags2}${mergeInfo}</span><span class="num">${f.p}</span><span class="num">${f.c}</span><span class="num">${f.f}</span></div>`;
+        });
+      }
+
+      comboRows+=`<div class="combo-card ${isPicked?'picked':''}" id="cc-${idx}">
+        <div class="cc-hd"><span class="cc-num">${combo.length===0?'无需补足':'方案 '+(idx+1)}</span>
+          <button class="btn ${isPicked?'sel-btn':'pri'}" style="font-size:12px;padding:5px 12px" onclick="pickCombo(${idx})">
+            ${isPicked?'✓ 已选择':'选择此方案'}
+          </button></div>
+        <div class="cc-pills">
+          <span class="pill p">P ${totP}g ${dHTML(dP)}</span>
+          <span class="pill c">C ${totC}g ${dHTML(dC)}</span>
+          <span class="pill f">F ${totF}g ${dHTML(dF)}</span>
+          <span class="pill k">${kcal} kcal ${dHTML(dK)}</span>
+        </div>
+        ${foodRows}
+      </div>`;
+    });
+  }
+
+  // Summary panel
+  let sumRows='';
+  const removedArr=[...removedKeys].map(k=>{const i=getPlanItem(k);const mt=getMealType(k);return i?{...i,mealType:mt}:null}).filter(Boolean);
+  if(removedArr.length>0){
+    sumRows+=`<div class="rv-lbl kept">移除的食物</div>`;
+    removedArr.forEach(i=>{sumRows+=`<div class="rv-row"><span class="rp">${i.portion}</span><span class="fn" style="text-decoration:line-through;color:var(--red)">${i.food} ${ttag(i.mealType)}</span><span class="num">${i.p}</span><span class="num">${i.c}</span><span class="num">${i.f}</span></div>`;});
+  }
+  if(chosenFoods.length>0){
+    sumRows+=`<div class="rv-lbl chosen">替换为</div>`;
+    chosenFoods.forEach(i=>{const pl=i.type===1?`${i.oz}oz`:(i.count===1?'1份':`${i.count}份`);const tgs=i.mealTypes.map(t=>ttag(t)).join('');sumRows+=`<div class="rv-row"><span class="rp">${pl}</span><span class="fn ch">${i.food} ${tgs}</span><span class="num">${i.p}</span><span class="num">${i.c}</span><span class="num">${i.f}</span></div>`;});
+  }
+
+  document.getElementById('v3').innerHTML=`<div class="two">
+    <div class="panel">
+      <div class="ph"><div><div class="pt">补足方案</div><div class="ps">选择一个方案后查看完整餐单</div></div><button class="btn ghost" style="font-size:12px;padding:5px 12px" onclick="goStep2()">← 返回</button></div>
+      <div class="gap-bar"><strong style="margin-right:4px">需补足：</strong>${gapInner}</div>
+      <div class="pb">${comboRows}</div>
+      <div class="ab"><span class="ai" id="s3info">${pickedCombo?'已选方案 '+(pickedCombo.idx+1):'请先选择一个方案'}</span><button class="btn pri" id="s3next" onclick="goStep4()" ${pickedCombo?'':'disabled'}>查看完整餐单 →</button></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><div class="pt">替换摘要</div></div></div>
+      <div class="pb">${sumRows||`<div class="empty"><div class="ei">📝</div><div class="et">摘要为空</div></div>`}</div>
+    </div>
+  </div>`;
+}
+
+function pickCombo(idx){
+  pickedCombo={idx,foods:step3Combos[idx]};
+  renderS3();
+  // update next btn
+  const nb=document.getElementById('s3next');if(nb)nb.disabled=false;
+  const si=document.getElementById('s3info');if(si)si.textContent='已选方案 '+(idx+1);
+}
+
+// ── STEP 4 ────────────────────────────────────────────────────────────────────
+function goStep4(){
+  if(!pickedCombo)return;
+  setStep(4);renderS4();
+}
+
+function renderS4(){
+  const plan=PLANS[currentDay],t=plan.target;
+  const fix=calcFixed(),ch=calcChosen();
+  const combo=pickedCombo.foods;
+  const aP=r(combo.reduce((s,x)=>s+x.p,0));
+  const aC=r(combo.reduce((s,x)=>s+x.c,0));
+  const aF=r(combo.reduce((s,x)=>s+x.f,0));
+  const totP=r(fix.p+ch.p+aP),totC=r(fix.c+ch.c+aC),totF=r(fix.f+ch.f+aF);
+  const kcal=r0(totP*4+totC*4+totF*9);
+  const dP=r(totP-t.p),dC=r(totC-t.c),dF=r(totF-t.f),dK=kcal-t.kcal;
+
+  // Build complete meal plan with merging
+  // First, collect all "extra" foods (chosen + autofill) indexed by food name
+  const extras={};
+  [...chosenFoods,...combo].forEach(f=>{
+    if(!f.food)return;
+    if(extras[f.food]){extras[f.food].p=r(extras[f.food].p+f.p);extras[f.food].c=r(extras[f.food].c+f.c);extras[f.food].f=r(extras[f.food].f+f.f);if(f.type===1)extras[f.food].oz=r(extras[f.food].oz+(f.oz||0));else extras[f.food].count=(extras[f.food].count||0)+(f.count||1);}
+    else{extras[f.food]={...f};}
+  });
+
+  let planRows='';
+  const shownExtras=new Set();
+
+  plan.meals.forEach(meal=>{
+    planRows+=`<div class="rv-lbl kept">${meal.label}</div>`;
+    planRows+=`<div class="col-hd" style="grid-template-columns:80px 1fr 36px 36px 36px;padding:4px 18px"><span style="text-align:left">份量</span><span>食物</span><span>P</span><span>C</span><span>F</span></div>`;
+    meal.items.forEach(item=>{
+      const key=meal.label+'|'+item.food;
+      if(removedKeys.has(key))return; // skip removed
+
+      // Check if this food has extras to merge
+      if(extras[item.food]){
+        const ex=extras[item.food];
+        // Compute merged totals
+        const mP=r(item.p+ex.p),mC=r(item.c+ex.c),mF=r(item.f+ex.f);
+        let mergedPortion='',defaultPortion='';
+        if(item.type===1&&ex.oz){
+          const newOz=r(item.oz+ex.oz);
+          mergedPortion=`${newOz}oz`;defaultPortion=`${item.oz}oz`;
+          const diffOz=r(ex.oz);
+          planRows+=`<div class="rv-row"><span class="rp">${mergedPortion}</span><span class="fn mg">${item.food} <span class="hint">默认${defaultPortion}，多+${diffOz}oz</span></span><span class="num">${mP}</span><span class="num">${mC}</span><span class="num">${mF}</span></div>`;
+        } else if(item.type===2&&ex.count){
+          const newCnt=(item.perUnit?Math.round(item.p/item.perUnit.p):1)+ex.count;
+          const defCnt=item.perUnit?Math.round(item.p/item.perUnit.p):1;
+          planRows+=`<div class="rv-row"><span class="rp">${newCnt}份</span><span class="fn mg">${item.food} <span class="hint">默认${defCnt}份，多+${ex.count}份</span></span><span class="num">${mP}</span><span class="num">${mC}</span><span class="num">${mF}</span></div>`;
+        } else {
+          planRows+=`<div class="rv-row"><span class="rp">${item.portion}</span><span class="fn mg">${item.food} <span class="hint">+已合并</span></span><span class="num">${mP}</span><span class="num">${mC}</span><span class="num">${mF}</span></div>`;
+        }
+        shownExtras.add(item.food);
+      } else {
+        planRows+=`<div class="rv-row"><span class="rp">${item.portion}</span><span class="fn">${item.food}</span><span class="num">${item.p}</span><span class="num">${item.c}</span><span class="num">${item.f}</span></div>`;
+      }
+    });
+  });
+
+  // Chosen foods not merged (new foods not in original plan)
+  const newChosen=chosenFoods.filter(f=>!shownExtras.has(f.food));
+  if(newChosen.length>0){
+    planRows+=`<div class="rv-lbl chosen">✦ 替换食物（新增）</div>`;
+    planRows+=`<div class="col-hd" style="grid-template-columns:80px 1fr 36px 36px 36px;padding:4px 18px"><span style="text-align:left">份量</span><span>食物</span><span>P</span><span>C</span><span>F</span></div>`;
+    newChosen.forEach(item=>{
+      const pl=item.type===1?`${item.oz}oz`:(item.count===1?'1份':`${item.count}份`);
+      const tgs=item.mealTypes.map(t=>ttag(t)).join('');
+      planRows+=`<div class="rv-row"><span class="rp">${pl}</span><span class="fn ch">${item.food} ${tgs}</span><span class="num">${item.p}</span><span class="num">${item.c}</span><span class="num">${item.f}</span></div>`;
+    });
+  }
+
+  // Autofill foods not merged
+  const newAuto=combo.filter(f=>f.food&&!shownExtras.has(f.food));
+  if(newAuto.length>0){
+    planRows+=`<div class="rv-lbl auto">✦ 自动补足（新增）</div>`;
+    planRows+=`<div class="col-hd" style="grid-template-columns:80px 1fr 36px 36px 36px;padding:4px 18px"><span style="text-align:left">份量</span><span>食物</span><span>P</span><span>C</span><span>F</span></div>`;
+    newAuto.forEach(f=>{
+      const tgs=f.mealTypes.map(t=>ttag(t)).join('');
+      planRows+=`<div class="rv-row"><span class="rp">${f.portion}</span><span class="fn au">${f.food} ${tgs}</span><span class="num">${f.p}</span><span class="num">${f.c}</span><span class="num">${f.f}</span></div>`;
+    });
+  }
+
+  // Comparison table
+  const compRows=[
+    ['Protein','p-color',t.p,totP,'g'],
+    ['Carbs','c-color',t.c,totC,'g'],
+    ['Fat','f-color',t.f,totF,'g'],
+    ['Calories','text',t.kcal,kcal,' kcal']
+  ].map(([lbl,col,def,cur,unit])=>{
+    const d=r(cur-def);const dc=d>0?'var(--accent)':d<0?'var(--red)':'var(--text-light)';
+    return`<tr><td style="padding:6px 0;font-size:12px;color:var(--text-muted)">${lbl}</td><td style="text-align:right;padding:6px 8px;color:var(--text-muted)">${def}${unit}</td><td style="text-align:right;padding:6px 8px;font-weight:600;color:var(--${col})">${cur}${unit}</td><td style="text-align:right;padding:6px 0;font-weight:600;color:${dc}">${d>=0?'+':''}${d}${unit}</td></tr>`;
+  }).join('');
+
+  const removedList=[...removedKeys].map(k=>{const i=getPlanItem(k);const mt=getMealType(k);return i?`<div style="font-size:13px;color:var(--red);text-decoration:line-through;padding:2px 0">${i.portion} ${i.food} ${ttag(mt)}</div>`:''}).join('');
+  const addedList=[...newChosen,...newAuto].map(f=>{const pl=f.type===1?`${f.oz}oz`:(f.count===1?'1份':`${f.count}份`);const tgs=f.mealTypes.map(t=>ttag(t)).join('');return`<div style="font-size:13px;color:var(--blue);padding:2px 0">${pl} ${f.food} ${tgs}</div>`;}).join('');
+  const mergedList=Object.keys(extras).filter(fn=>shownExtras.has(fn)).map(fn=>{const ex=extras[fn];const hint=ex.type===1?`+${r(ex.oz)}oz`:`+${ex.count}份`;return`<div style="font-size:13px;color:var(--accent);padding:2px 0">${fn} <span style="font-size:11px;color:var(--text-muted)">${hint}</span></div>`;}).join('');
+
+  document.getElementById('v4').innerHTML=`<div class="two">
+    <div class="panel">
+      <div class="ph"><div><div class="pt">完整餐单</div><div class="ps">${plan.label}</div></div></div>
+      <div class="macro-bar">${macroBarHTML(totP,totC,totF,kcal,dP,dC,dF,dK)}</div>
+      <div class="pb">${planRows}</div>
+      <div class="ab"><button class="btn ghost" onclick="goStep3()">← 重新选方案</button><button class="btn ghost" onclick="goStep1()">重新开始</button></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><div><div class="pt">对比默认方案</div></div></div>
+      <div class="pb">
+        <div style="padding:16px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">营养数值对比</div>
+          <table style="width:100%;border-collapse:collapse">
+            <tr style="font-size:10px;color:var(--text-light)"><td></td><td style="text-align:right;padding:4px 8px;font-weight:600">默认</td><td style="text-align:right;padding:4px 8px;font-weight:600">今日</td><td style="text-align:right;padding:4px 0;font-weight:600">变化</td></tr>
+            ${compRows}
+          </table>
+        </div>
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">移除的食物</div>
+          ${removedList||'<div style="font-size:12px;color:var(--text-light)">无</div>'}
+        </div>
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">新增的食物</div>
+          ${addedList||'<div style="font-size:12px;color:var(--text-light)">无</div>'}
+        </div>
+        ${mergedList?`<div style="padding:14px 18px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">份量调整（与已有食物合并）</div>
+          ${mergedList}
+        </div>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── AUTOFILL SEARCH ───────────────────────────────────────────────────────────
+function findAutofill(needP,needC,needF,tol){
+  const excluded=new Set([...[...removedKeys].map(k=>k.slice(k.indexOf('|')+1)),...chosenFoods.map(x=>x.food)]);
+
+  // Build candidates from ALL food types (not restricted)
+  const candidates=[];
+  FOOD_LIB.forEach(food=>{
+    if(excluded.has(food.food))return;
+    if(food.type===1){
+      const step=food.step||.5;
+      for(let oz=step;oz<=food.base.oz*2.5;oz=r(oz+step)){
+        candidates.push({food:food.food,portion:`${oz}oz`,p:r(food.perOz.p*oz),c:r(food.perOz.c*oz),f:r(food.perOz.f*oz),type:1,oz,step,perOz:food.perOz,mealTypes:food.mealTypes});
+      }
+    } else {
+      for(let n=1;n<=3;n++){
+        candidates.push({food:food.food,portion:n===1?'1份':`${n}份`,p:food.perUnit.p*n,c:food.perUnit.c*n,f:food.perUnit.f*n,type:2,count:n,perUnit:food.perUnit,mealTypes:food.mealTypes});
+      }
+    }
+  });
+
+  // Check if a candidate can merge with existing plan foods
+  function withMergeHint(cand){
+    // Find if this food already exists in the current plan (not removed)
+    let existingItem=null;
+    PLANS[currentDay].meals.forEach(meal=>{
+      meal.items.forEach(item=>{
+        const key=meal.label+'|'+item.food;
+        if(item.food===cand.food&&!removedKeys.has(key))existingItem=item;
+      });
+    });
+    if(existingItem){
+      let hint='';
+      if(cand.type===1&&cand.oz){hint=`合并：默认${existingItem.oz}oz + ${cand.oz}oz`;}
+      else if(cand.type===2&&cand.count){const defCnt=existingItem.perUnit?Math.round(existingItem.p/existingItem.perUnit.p):1;hint=`合并：默认${defCnt}份 + ${cand.count}份`;}
+      return{...cand,mergeHint:hint};
+    }
+    return cand;
+  }
+
+  const slim=candidates.filter(c=>c.p<=needP+tol+4&&c.c<=needC+tol+4&&c.f<=needF+tol+4);
+  const results=[];
+
+  for(const a of slim){
+    if(results.length>=6)break;
+    if(Math.abs(a.p-needP)<=tol&&Math.abs(a.c-needC)<=tol&&Math.abs(a.f-needF)<=tol)
+      results.push([withMergeHint(a)]);
+  }
+  for(let i=0;i<slim.length&&results.length<6;i++){
+    for(let j=i+1;j<slim.length&&results.length<6;j++){
+      const a=slim[i],b=slim[j];
+      if(Math.abs(r(a.p+b.p)-needP)<=tol&&Math.abs(r(a.c+b.c)-needC)<=tol&&Math.abs(r(a.f+b.f)-needF)<=tol)
+        results.push([withMergeHint(a),withMergeHint(b)]);
+    }
+  }
+  if(results.length<4){
+    const s2=slim.slice(0,50);
+    for(let i=0;i<s2.length&&results.length<6;i++)
+      for(let j=i+1;j<s2.length&&results.length<6;j++)
+        for(let k=j+1;k<s2.length&&results.length<6;k++){
+          const a=s2[i],b=s2[j],c2=s2[k];
+          if(Math.abs(r(a.p+b.p+c2.p)-needP)<=tol&&Math.abs(r(a.c+b.c+c2.c)-needC)<=tol&&Math.abs(r(a.f+b.f+c2.f)-needF)<=tol)
+            results.push([withMergeHint(a),withMergeHint(b),withMergeHint(c2)]);
+        }
+  }
+  return results;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+goStep1();
+</script>
+</body>
+</html>
