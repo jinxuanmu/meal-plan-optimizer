@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/react";
 import { DataEditorModal } from "@/components/DataEditorModal";
 import { Header } from "@/components/Header";
 import { Step1 } from "@/components/Step1";
@@ -17,6 +18,7 @@ export default function App() {
       {step === 1 && <Step1 />}
       {step === 2 && <Step2V2 />}
       {step === 3 && <Step3V2 />}
+      <Analytics />
     </div>
   );
 }
